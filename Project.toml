@@ -1,0 +1,19 @@
+name = "PROPOSAL"
+uuid = "0dd74e74-b753-4f0a-bbfe-831cdbe783b0"
+authors = ["Jeffrey Lazar"]
+version = "0.1.0"
+
+[deps]
+CxxWrap = "1f15a43c-97ca-5a2a-ae31-89f07a497df4"
+# PROPOSAL_cxxwrap_jll = "<uuid>"  # Uncomment after JLL is registered
+
+[compat]
+CxxWrap = "0.14, 0.15"
+# PROPOSAL_cxxwrap_jll = "0.1"  # Uncomment after JLL is registered
+julia = "1.6, 1.7, 1.8, 1.9, 1.10, 1.11"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

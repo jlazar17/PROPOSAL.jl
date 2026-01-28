@@ -1,0 +1,170 @@
+# PROPOSAL.jl
+
+Julia bindings for [PROPOSAL](https://github.com/tudo-astroparticlephysics/PROPOSAL) (Propagator with Optimal Precision and Optimized Speed for All Leptons).
+
+PROPOSAL is a library for propagating leptons and gamma rays through media, featuring up-to-date cross sections for ionization, bremsstrahlung, photonuclear interactions, electron pair production, Landau-Pomeranchuk-Migdal and Ter-Mikaelian effects, muon and tau decay, as well as Moliere scattering.
+
+## Installation
+
+Once registered in the Julia General registry:
+
+```julia
+using Pkg
+Pkg.add("PROPOSAL")
+```
+
+### Development Install
+
+To use PROPOSAL.jl before it is registered, clone the repository and install in development mode:
+
+```julia
+using Pkg
+Pkg.develop(path="/path/to/PROPOSAL.jl")
+```
+
+Note that the native library must be available for the bindings to work. You can either:
+1. Wait for `PROPOSAL_cxxwrap_jll` to be registered (provides the library automatically)
+2. Build locally and set the `PROPOSAL_JL_LIB_PATH` environment variable to the directory containing `libPROPOSAL_cxxwrap`
+3. Place the built library in `PROPOSAL.jl/build/lib/`
+
+See `deps/binarybuilder/README.md` for local build instructions.
+
+## Requirements
+
+- Julia 1.6 or higher
+- CxxWrap.jl 0.14 or 0.15
+
+## Usage
+
+```julia
+using PROPOSAL
+
+# Set random seed for reproducibility
+set_random_seed(42)
+
+# Create a propagator for muon minus from a config file
+propagator = create_propagator_muminus("path/to/config.json")
+
+# Create initial particle state
+# Muon at origin, pointing in +z direction, with 1 TeV energy
+state = ParticleState(
+    PARTICLE_TYPE_MUMINUS,
+    0.0, 0.0, 0.0,      # position (x, y, z) in cm
+    0.0, 0.0, 1.0,      # direction (dx, dy, dz)
+    1e6;                # energy in MeV (1 TeV)
+    time=0.0,
+    propagated_distance=0.0
+)
+
+# Propagate the particle (max 100 km, min energy 1 GeV)
+secondaries = propagate(propagator, state; max_distance=1e7, min_energy=1e3)
+
+# Access results
+final_state = get_final_state(secondaries)
+println("Final energy: ", get_energy(final_state), " MeV")
+println("Propagated distance: ", get_propagated_distance(final_state), " cm")
+println("Number of track points: ", track_size(secondaries))
+
+# Get track information as arrays
+energies = get_track_energies_array(secondaries)
+distances = get_track_propagated_distances_array(secondaries)
+```
+
+## Configuration
+
+PROPOSAL uses JSON configuration files to define the propagation environment. Example minimal configuration:
+
+```json
+{
+    "global": {
+        "medium": "StandardRock",
+        "cuts": {
+            "e_cut": 500,
+            "v_cut": 0.05,
+            "cont_rand": false
+        },
+        "do_interpolation": true,
+        "do_exact_time": false
+    },
+    "sectors": [
+        {
+            "geometry": {
+                "shape": "sphere",
+                "origin": [0, 0, 0],
+                "outer_radius": 1e20,
+                "inner_radius": 0
+            }
+        }
+    ]
+}
+```
+
+For detailed configuration options, see the [PROPOSAL documentation](https://github.com/tudo-astroparticlephysics/PROPOSAL/blob/master/docs/config_docu.md).
+
+## Available Types and Functions
+
+### Particle Definitions
+- `MuMinusDef()`, `MuPlusDef()` - Muons
+- `EMinusDef()`, `EPlusDef()` - Electrons/Positrons
+- `TauMinusDef()`, `TauPlusDef()` - Taus
+- `GammaDef()` - Photons
+
+### Propagator Factory Functions
+- `create_propagator_muminus(config_path)`
+- `create_propagator_muplus(config_path)`
+- `create_propagator_eminus(config_path)`
+- `create_propagator_eplus(config_path)`
+- `create_propagator_tauminus(config_path)`
+- `create_propagator_tauplus(config_path)`
+- `create_propagator_gamma(config_path)`
+
+### Math Types
+- `Cartesian3D(x, y, z)` - 3D Cartesian coordinates
+- `Spherical3D(r, azimuth, zenith)` - 3D Spherical coordinates
+
+### Constants
+- `SPEED_OF_LIGHT`, `ELECTRON_MASS`, `MUON_MASS`, `TAU_MASS`, `PROTON_MASS`
+- `PARTICLE_TYPE_MUMINUS`, `PARTICLE_TYPE_MUPLUS`, `PARTICLE_TYPE_EMINUS`, etc.
+
+### Utility Functions
+- `set_random_seed(seed)` - Set RNG seed for reproducibility
+- `get_proposal_version()` - Get PROPOSAL version string
+- `is_library_available()` - Check if the native library is loaded
+
+## License
+
+This software is distributed under the GNU Lesser General Public License v3.0 (LGPL-3.0), the same license as the upstream PROPOSAL library.
+
+### Citation Requirements
+
+If you use PROPOSAL.jl, please cite the PROPOSAL paper:
+
+> J.H. Koehne et al., "PROPOSAL: A tool for propagation of charged leptons"
+> Comput. Phys. Commun. 184 (2013) 2070-2090
+> DOI: [10.1016/j.cpc.2013.04.001](https://doi.org/10.1016/j.cpc.2013.04.001)
+
+BibTeX:
+```bibtex
+@article{koehne2013proposal,
+  title   = {PROPOSAL: A tool for propagation of charged leptons},
+  author  = {Koehne, Jan-Hendrik and Frantzen, Katharina and Schmitz, Martin
+             and Fuchs, Tomasz and Rhode, Wolfgang and Chirkin, Dmitry
+             and Tjus, J Becker},
+  journal = {Computer Physics Communications},
+  volume  = {184},
+  number  = {9},
+  pages   = {2070--2090},
+  year    = {2013},
+  doi     = {10.1016/j.cpc.2013.04.001}
+}
+```
+
+## Related Projects
+
+- [PROPOSAL](https://github.com/tudo-astroparticlephysics/PROPOSAL) - The upstream C++ library
+- [proposal (PyPI)](https://pypi.org/project/proposal/) - Python bindings for PROPOSAL
+
+## Issues
+
+For issues specific to the Julia bindings, please open an issue on this repository.
+For issues with the core PROPOSAL library, please report them to the [upstream repository](https://github.com/tudo-astroparticlephysics/PROPOSAL/issues).

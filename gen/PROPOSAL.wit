@@ -1,0 +1,82 @@
+# WrapIt configuration for PROPOSAL Julia bindings
+# See https://github.com/grasph/wrapit for documentation
+
+[setup]
+# Module name for the generated wrapper
+module_name = "PROPOSAL"
+
+# Output directory for generated wrapper code
+output_dir = "jl"
+
+[input]
+# Main PROPOSAL header that includes everything
+files = [
+    "PROPOSAL/PROPOSAL.h"
+]
+
+[input_dirs]
+# Path to PROPOSAL include directory (set via -I during generation)
+paths = []
+
+[include_dirs]
+# Additional include directories for compilation
+# These will be passed to clang during parsing
+paths = [
+    # Will be set at generation time based on PROPOSAL installation
+]
+
+[export]
+# Export all public symbols to Julia
+policy = "all"
+
+[propagation_mode]
+# Automatically include types referenced in function signatures
+mode = "methods"
+
+[cxxwrap]
+# CxxWrap-specific settings
+# Prefer smart pointers for automatic memory management
+smart_pointers = true
+
+[output]
+# Split generated code across multiple files to reduce memory usage during compilation
+n_classes_per_file = 15
+
+# Use separate files for each module component
+module_file = "PROPOSAL_jl.cxx"
+
+[veto]
+# Exclude internal implementation details and problematic entities
+# These patterns will be skipped during wrapping
+classes = [
+    # Internal implementation details
+    ".*::detail::.*",
+    ".*::internal::.*",
+    # Template specializations that cause issues
+    "std::.*",
+]
+
+methods = [
+    # Skip methods with problematic signatures
+]
+
+functions = [
+    # Skip free functions that are internal
+]
+
+[type_mapping]
+# Custom type mappings from C++ to Julia types
+# Format: "C++Type" = "JuliaType"
+
+# Standard library types
+"std::string" = "String"
+"std::vector" = "Vector"
+
+[special_functions]
+# Handle special member functions
+
+# Enable automatic generation of show methods
+generate_show = true
+
+# Enable iteration for container types
+generate_iteration = true

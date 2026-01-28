@@ -146,6 +146,31 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod) {
             return prop.Propagate(initial, max_distance, min_energy);
         });
 
+    // ========== Propagator Factory Functions ==========
+    // These avoid CxxWrap upcast issues by constructing with concrete types
+
+    mod.method("create_propagator_muminus", [](const std::string& config) {
+        return Propagator(MuMinusDef(), config);
+    });
+    mod.method("create_propagator_muplus", [](const std::string& config) {
+        return Propagator(MuPlusDef(), config);
+    });
+    mod.method("create_propagator_eminus", [](const std::string& config) {
+        return Propagator(EMinusDef(), config);
+    });
+    mod.method("create_propagator_eplus", [](const std::string& config) {
+        return Propagator(EPlusDef(), config);
+    });
+    mod.method("create_propagator_tauminus", [](const std::string& config) {
+        return Propagator(TauMinusDef(), config);
+    });
+    mod.method("create_propagator_tauplus", [](const std::string& config) {
+        return Propagator(TauPlusDef(), config);
+    });
+    mod.method("create_propagator_gamma", [](const std::string& config) {
+        return Propagator(GammaDef(), config);
+    });
+
     // ========== Random Number Generator ==========
 
     mod.method("set_random_seed", [](int seed) {

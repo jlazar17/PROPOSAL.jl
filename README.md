@@ -24,10 +24,71 @@ Pkg.develop(path="/path/to/PROPOSAL.jl")
 
 Note that the native library must be available for the bindings to work. You can either:
 1. Wait for `PROPOSAL_cxxwrap_jll` to be registered (provides the library automatically)
-2. Build locally and set the `PROPOSAL_JL_LIB_PATH` environment variable to the directory containing `libPROPOSAL_cxxwrap`
-3. Place the built library in `PROPOSAL.jl/build/lib/`
+2. Build the wrapper library locally (see below)
+3. Set the `PROPOSAL_JL_LIB_PATH` environment variable to a directory containing the built library
 
-See `deps/binarybuilder/README.md` for local build instructions.
+### Building the Wrapper Library
+
+The wrapper library bridges PROPOSAL's C++ API to Julia via CxxWrap. Building it requires:
+
+- C++17 compatible compiler
+- CMake 3.15+
+- [PROPOSAL](https://github.com/tudo-astroparticlephysics/PROPOSAL) (installed with CMake config files)
+- [CxxWrap.jl](https://github.com/JuliaInterop/CxxWrap.jl) (`Pkg.add("CxxWrap")`)
+
+#### 1. Install PROPOSAL C++ library
+
+```bash
+git clone https://github.com/tudo-astroparticlephysics/PROPOSAL.git
+cd PROPOSAL
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local -DBUILD_SHARED_LIBS=ON
+cmake --build . --parallel
+cmake --install .
+```
+
+#### 2. Get the JlCxx CMake path
+
+```bash
+JLCXX_DIR=$(julia -e 'using CxxWrap; print(CxxWrap.prefix_path())')/lib/cmake/JlCxx
+```
+
+#### 3. Build the wrapper
+
+```bash
+cd PROPOSAL.jl/deps/binarybuilder/wrapper_src
+mkdir build && cd build
+cmake .. \
+    -DJlCxx_DIR=$JLCXX_DIR \
+    -DPROPOSAL_DIR=$HOME/.local/lib/cmake/PROPOSAL \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build . --parallel
+```
+
+#### 4. Install the library
+
+Copy the built library to where PROPOSAL.jl can find it:
+
+```bash
+mkdir -p PROPOSAL.jl/build/lib
+cp build/libPROPOSAL_jl.* PROPOSAL.jl/build/lib/
+```
+
+Or set the environment variable instead:
+
+```bash
+export PROPOSAL_JL_LIB_PATH=/path/to/build
+```
+
+#### Apple Silicon Note
+
+On Apple Silicon Macs, ensure all components use the same architecture. If you encounter `symbol(s) not found for architecture x86_64` errors, verify that Julia, CxxWrap, PROPOSAL, and all dependencies are built for arm64:
+
+```bash
+file /path/to/library.dylib  # should show "arm64"
+```
+
+See `deps/binarybuilder/README.md` for BinaryBuilder-based build instructions and Yggdrasil submission details.
 
 ## Requirements
 

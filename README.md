@@ -42,10 +42,25 @@ The wrapper library bridges PROPOSAL's C++ API to Julia via CxxWrap. Building it
 git clone https://github.com/tudo-astroparticlephysics/PROPOSAL.git
 cd PROPOSAL
 mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local -DBUILD_SHARED_LIBS=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
 cmake --install .
 ```
+
+**Important:** Use `-DCMAKE_BUILD_TYPE=Release` to disable C++ assertions. Debug/default builds include assertions that can cause `SIGABRT` crashes during propagation (e.g., `energy_initial >= energy_final` in `PropagationUtilityInterpolant.cxx`).
+
+**Known issue:** The installed `PROPOSALConfig.cmake` (at `$HOME/.local/lib/cmake/PROPOSAL/PROPOSALConfig.cmake`) may have broken paths. If the wrapper build fails to find PROPOSAL, edit the file:
+
+1. Change the prefix calculation from `../../` to `../../../`:
+   ```cmake
+   get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+   ```
+2. Fix the legacy variable paths:
+   ```cmake
+   set_and_check(PROPOSAL_INCLUDE_DIR  "${PACKAGE_PREFIX_DIR}/include")
+   set_and_check(PROPOSAL_INCLUDE_DIRS "${PACKAGE_PREFIX_DIR}/include")
+   set_and_check(PROPOSAL_LIBRARIES    "${PACKAGE_PREFIX_DIR}/lib/libPROPOSAL.dylib")  # .so on Linux
+   ```
 
 #### 2. Get the JlCxx CMake path
 

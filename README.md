@@ -67,17 +67,31 @@ cmake --build . --parallel
 
 #### 4. Install the library
 
-Copy the built library to where PROPOSAL.jl can find it:
+The Julia code expects the library to be named `libPROPOSAL_cxxwrap`, so copy and rename it:
 
 ```bash
 mkdir -p PROPOSAL.jl/build/lib
-cp build/libPROPOSAL_jl.* PROPOSAL.jl/build/lib/
+cp build/libPROPOSAL_jl.dylib PROPOSAL.jl/build/lib/libPROPOSAL_cxxwrap.dylib  # macOS
+# cp build/libPROPOSAL_jl.so PROPOSAL.jl/build/lib/libPROPOSAL_cxxwrap.so      # Linux
 ```
 
-Or set the environment variable instead:
+Or set the environment variable instead (the library must still be named `libPROPOSAL_cxxwrap`):
 
 ```bash
-export PROPOSAL_JL_LIB_PATH=/path/to/build
+export PROPOSAL_JL_LIB_PATH=/path/to/directory/containing/libPROPOSAL_cxxwrap
+```
+
+After copying the library, you must clear the Julia precompile cache so the package picks up the new library:
+
+```bash
+rm -rf ~/.julia/compiled/v1.*/PROPOSAL
+```
+
+Then start Julia and verify:
+
+```julia
+using PROPOSAL
+is_library_available()  # should return true
 ```
 
 #### Apple Silicon Note
@@ -191,6 +205,46 @@ For detailed configuration options, see the [PROPOSAL documentation](https://git
 - `set_random_seed(seed)` - Set RNG seed for reproducibility
 - `get_proposal_version()` - Get PROPOSAL version string
 - `is_library_available()` - Check if the native library is loaded
+
+## Troubleshooting
+
+### `PROPOSALConfig.cmake` broken install paths
+
+After installing PROPOSAL with `cmake --install .`, the generated `PROPOSALConfig.cmake` (located at `$CMAKE_INSTALL_PREFIX/lib/cmake/PROPOSAL/PROPOSALConfig.cmake`) may contain incorrect paths for `PROPOSAL_INCLUDE_DIR`, `PROPOSAL_INCLUDE_DIRS`, and `PROPOSAL_LIBRARIES`. For example:
+
+```cmake
+set_and_check(PROPOSAL_INCLUDE_DIR  "/include")  # missing prefix
+```
+
+Fix by editing the file to use the `PACKAGE_PREFIX_DIR` variable, and adjust the prefix calculation to point to the install root (three levels up from the cmake directory, not two):
+
+```cmake
+get_filename_component(PACKAGE_PREFIX_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../" ABSOLUTE)
+# ...
+set_and_check(PROPOSAL_INCLUDE_DIR  "${PACKAGE_PREFIX_DIR}/include")
+set_and_check(PROPOSAL_INCLUDE_DIRS "${PACKAGE_PREFIX_DIR}/include")
+set_and_check(PROPOSAL_LIBRARIES    "${PACKAGE_PREFIX_DIR}/lib/libPROPOSAL.dylib")
+```
+
+### `StdFill` / STL wrapping errors with CxxWrap.jl 0.15
+
+If you see an error like:
+
+```
+UndefVarError: `StdFill` not defined in `CxxWrap.StdLib`
+```
+
+This is caused by a mismatch between the CxxWrap C++ headers (which define `StdFill`) and the bundled `libcxxwrap_julia_jll` binary (v0.12.3, which does not export the required `StlWrappers::instance()` symbol). The wrapper's `CMakeLists.txt` must **not** link against `JlCxx::cxxwrap_julia_stl`, and the C++ wrapper source must avoid `#include "jlcxx/stl.hpp"` and not return `std::vector` types directly from wrapped functions. Instead, use indexed access patterns (size + element-at-index) to expose collection data.
+
+### Precompile cache not updated after building the library
+
+If `is_library_available()` returns `false` even though the library file exists at the expected path, the Julia precompile cache is stale. The library path is resolved at precompile time as a `const`. Clear the cache:
+
+```bash
+rm -rf ~/.julia/compiled/v1.*/PROPOSAL
+```
+
+Then restart Julia and `using PROPOSAL` again.
 
 ## License
 

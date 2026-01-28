@@ -5,7 +5,6 @@
  */
 
 #include "jlcxx/jlcxx.hpp"
-#include "jlcxx/stl.hpp"
 
 #include "PROPOSAL/PROPOSAL.h"
 
@@ -117,13 +116,26 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod) {
     // ========== Secondaries (Track) ==========
 
     mod.add_type<Secondaries>("Secondaries")
-        .method("get_track", [](const Secondaries& s) { return s.GetTrack(); })
         .method("get_initial_state", &Secondaries::GetInitialState)
         .method("get_final_state", &Secondaries::GetFinalState)
-        .method("get_track_length", &Secondaries::GetTrackLength)
-        .method("get_track_energies", &Secondaries::GetTrackEnergies)
-        .method("get_track_times", &Secondaries::GetTrackTimes)
-        .method("get_track_propagated_distances", &Secondaries::GetTrackPropagatedDistances);
+        .method("get_track_length", &Secondaries::GetTrackLength);
+
+    // Track access via size + index to avoid std::vector STL wrapping issues
+    mod.method("track_size", [](const Secondaries& s) {
+        return static_cast<int64_t>(s.GetTrack().size());
+    });
+    mod.method("track_state_at", [](const Secondaries& s, int64_t i) {
+        return s.GetTrack().at(static_cast<size_t>(i));
+    });
+    mod.method("track_energy_at", [](const Secondaries& s, int64_t i) {
+        return s.GetTrackEnergies().at(static_cast<size_t>(i));
+    });
+    mod.method("track_time_at", [](const Secondaries& s, int64_t i) {
+        return s.GetTrackTimes().at(static_cast<size_t>(i));
+    });
+    mod.method("track_propagated_distance_at", [](const Secondaries& s, int64_t i) {
+        return s.GetTrackPropagatedDistances().at(static_cast<size_t>(i));
+    });
 
     // ========== Propagator ==========
 

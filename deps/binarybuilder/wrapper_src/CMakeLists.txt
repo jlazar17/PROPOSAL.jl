@@ -14,16 +14,26 @@ set(WRAPPER_SOURCES
 )
 
 # Create the wrapper library
-add_library(PROPOSAL_jl SHARED ${WRAPPER_SOURCES})
+add_library(PROPOSAL_cxxwrap SHARED ${WRAPPER_SOURCES})
 
-target_link_libraries(PROPOSAL_jl
+target_link_libraries(PROPOSAL_cxxwrap
     PRIVATE
     JlCxx::cxxwrap_julia
     PROPOSAL::PROPOSAL
 )
 
+# On macOS, avoid directly linking libjulia to prevent dlopen deadlock.
+# Julia symbols will be resolved at runtime since the host process already has them.
+if(APPLE)
+    target_link_options(PROPOSAL_cxxwrap PRIVATE "LINKER:-undefined,dynamic_lookup")
+    # Replace libjulia in JlCxx interface with nothing - symbols resolve at runtime
+    set_target_properties(JlCxx::cxxwrap_julia PROPERTIES
+        INTERFACE_LINK_LIBRARIES "-framework CoreFoundation"
+    )
+endif()
+
 # Install
-install(TARGETS PROPOSAL_jl
+install(TARGETS PROPOSAL_cxxwrap
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
 )

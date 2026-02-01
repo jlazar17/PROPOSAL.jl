@@ -124,65 +124,180 @@ See `deps/binarybuilder/README.md` for BinaryBuilder-based build instructions an
 - Julia 1.6 or higher
 - CxxWrap.jl 0.14 or 0.15
 
-## Usage
+## Quick Start
 
 ```julia
 using PROPOSAL
 
-# Set random seed for reproducibility
 set_random_seed(42)
 
-# Create a propagator for muon minus from a config file
+# --- Option 1: JSON config-based propagator ---
 propagator = create_propagator_muminus("path/to/config.json")
 
-# Create initial particle state
-# Muon at origin, pointing in +z direction, with 1 TeV energy
+# --- Option 2: Build from components ---
+pdef = MuMinusDef()
+medium = create_ice()
+handle = create_crosssections(pdef, medium, 500.0, 0.05, false, true)
+
+coll = PropagationUtilityCollection()
+set_displacement!(coll, make_displacement(handle, true))
+set_interaction!(coll, make_interaction(handle, true))
+set_time!(coll, make_time_calc(handle, pdef, true))
+
+geo = Sphere(Cartesian3D(0, 0, 0), 1e20, 0.0)
+dens = DensityHomogeneous(get_mass_density(medium))
+propagator = make_propagator_single_sector(pdef, geo, dens, coll)
+
+# --- Propagate ---
 state = ParticleState(
     PARTICLE_TYPE_MUMINUS,
     0.0, 0.0, 0.0,      # position (x, y, z) in cm
     0.0, 0.0, 1.0,      # direction (dx, dy, dz)
-    1e6;                # energy in MeV (1 TeV)
-    time=0.0,
-    propagated_distance=0.0
+    1e6;                 # energy in MeV (1 TeV)
 )
 
-# Propagate the particle (max 100 km, min energy 1 GeV)
 secondaries = propagate(propagator, state; max_distance=1e7, min_energy=1e3)
 
-# Access results
 final_state = get_final_state(secondaries)
 println("Final energy: ", get_energy(final_state), " MeV")
-println("Propagated distance: ", get_propagated_distance(final_state), " cm")
-println("Number of track points: ", track_size(secondaries))
+println("Distance: ", get_propagated_distance(final_state), " cm")
 
-# Get track information as arrays
-energies = get_track_energies_array(secondaries)
-distances = get_track_propagated_distances_array(secondaries)
+# Inspect stochastic losses
+for loss in get_stochastic_losses(secondaries)
+    println("  type=", get_type(loss), " E=", get_energy(loss), " MeV")
+end
+
+free_crosssections(handle)
 ```
+
+## Examples
+
+The [`examples/`](examples/) directory contains 22 runnable Julia scripts covering all features:
+
+| # | File | Concepts |
+|---|------|----------|
+| 1-10 | `01_energy_cuts.jl` .. `10_advanced_propagator.jl` | Julia equivalents of the [PROPOSAL Python examples](https://github.com/tudo-astroparticlephysics/PROPOSAL/tree/master/examples) |
+| 11 | `11_density_distributions.jl` | Homogeneous, exponential, polynomial, spline densities |
+| 12 | `12_math_types.jl` | Polynom, LinearSpline, CubicSpline |
+| 13 | `13_particle_lookup.jl` | ParticleDef, Builder, type lookup, constants |
+| 14 | `14_geometry.jl` | Sphere, Cylinder, Box queries, hit detection, entry/exit points |
+| 15 | `15_scattering.jl` | Highland, Moliere, stochastic deflection, ScatteringMultiplier |
+| 16 | `16_multi_sector_propagator.jl` | Multi-sector propagation with different media/densities |
+| 17 | `17_decay_channels.jl` | LeptonicDecayChannel, TwoBodyPhaseSpace, ManyBodyPhaseSpace, DecayTable |
+| 18 | `18_shadow_effects.jl` | Nuclear shadow effects on photonuclear cross sections |
+| 19 | `19_lpm_effects.jl` | LPM suppression factors for bremsstrahlung, pair production, photo-pair |
+| 20 | `20_medium_components.jl` | Medium properties, Component details, hash lookups |
+| 21 | `21_config_propagator.jl` | JSON configuration-based propagator, per-particle factories |
+| 22 | `22_settings.jl` | InterpolationSettings, PropagationSettings |
+
+See [`examples/README.md`](examples/README.md) for the full table.
+
+## Available Types and Functions
+
+### Particle Definitions
+- `MuMinusDef()`, `MuPlusDef()` — Muons
+- `EMinusDef()`, `EPlusDef()` — Electrons/Positrons
+- `TauMinusDef()`, `TauPlusDef()` — Taus
+- `GammaDef()` — Photons
+- `Pi0Def()`, `PiMinusDef()`, `PiPlusDef()` — Pions
+- `K0Def()`, `KMinusDef()`, `KPlusDef()` — Kaons
+- `NuEDef()`, `NuMuDef()`, `NuTauDef()` (and bar variants) — Neutrinos
+- `ParticleDefBuilder` — Custom particles with `set_mass`, `set_lifetime`, `set_decay_table`, `build`
+
+### Media
+- `create_water()`, `create_ice()`, `create_air()`, `create_standard_rock()`, `create_iron_medium()`, `create_lead_medium()`, `create_liquid_argon()`, and more
+- `get_mass_density`, `get_radiation_length`, `get_components`, Sternheimer parameters
+- Named components: `ComponentHydrogen()`, `ComponentCarbon()`, `ComponentOxygen()`, `ComponentIron()`, etc.
+- `get_component_for_hash(hash)` — lookup by hash
+
+### Geometry
+- `Sphere(center, outer_radius, inner_radius)`, `Cylinder(center, half_height, radius, inner_radius)`, `Box(center, half_x, half_y, half_z)`
+- `is_inside`, `is_infront`, `is_behind`, `distance_to_border`
+- `set_hierarchy` / `get_hierarchy` for multi-sector geometry
+
+### Density Distributions
+- `DensityHomogeneous(mass_density)`
+- `DensityExponential(axis, sigma, d0, mass_density)`
+- `DensityPolynomial(axis, polynom, mass_density)`
+- `DensitySplines(axis, spline, mass_density)`
+- Axes: `CartesianAxis(origin, direction)`, `RadialAxis(origin, direction)`
+
+### Cross Sections
+- `create_crosssections(pdef, medium, ecut, vcut, cont_rand, interpolate)` — standard cross sections
+- `calculate_dEdx`, `calculate_dE2dx`, `calculate_dNdx`, `calculate_stochastic_loss`
+- Individual parametrizations for bremsstrahlung, pair production, photonuclear, ionization, etc.
+
+### Scattering
+- `create_scattering_ms_only(name, pdef, medium)` — Highland, Moliere, MoliereInterpol
+- `create_scattering_with_sd(ms_name, pdef, medium, sd_name)` — with stochastic deflection
+- `create_scattering_multiplier(...)` — scale deflection angles
+
+### Propagation
+- `make_propagator_single_sector(pdef, geo, dens, coll)` — from components
+- `clear_sectors` / `add_sector_*` / `make_propagator_from_sectors(pdef)` — multi-sector
+- `create_propagator_muminus(config)`, `create_propagator(pdef, config)` — from JSON config
+- `propagate(propagator, state; max_distance, min_energy)` — propagation
+- `get_stochastic_losses(sec)`, `get_continuous_losses(sec)` — loss access
+- `hit_geometry`, `get_entry_point`, `get_exit_point` — geometry intersection
+
+### Decay
+- `LeptonicDecayChannel`, `LeptonicDecayChannelApprox`, `TwoBodyPhaseSpace`, `ManyBodyPhaseSpace`
+- `DecayTable` with `add_channel`, `select_channel`
+
+### Shadow & LPM Effects
+- `ShadowDuttaRenoSarcevicSeckel()`, `ShadowButkevichMikheyev()` — nuclear shadow
+- `create_brems_lpm`, `create_epair_lpm`, `create_photopair_lpm` — LPM suppression
+- `suppression_factor(lpm, ...)` — evaluate suppression
+
+### Math Types
+- `Cartesian3D(x, y, z)`, `Spherical3D(r, azimuth, zenith)`
+- `Polynom(coefficients)`, `LinearSpline(x, y)`, `CubicSpline(x, y)`
+- `evaluate`, `derive`, `antiderivative`
+
+### Settings
+- `set_tables_path(path)`, `set_upper_energy_lim(E)` — interpolation table config
+- `set_nodes_dedx(n)`, `set_nodes_dndx_e(n)`, etc. — interpolation accuracy
+- `set_max_steps(n)` — propagation step limit
+
+### Constants
+- `SPEED_OF_LIGHT`, `ELECTRON_MASS`, `MUON_MASS`, `TAU_MASS`, `PROTON_MASS`
+- `PARTICLE_TYPE_MUMINUS`, `PARTICLE_TYPE_MUPLUS`, `PARTICLE_TYPE_EMINUS`, etc.
+- `INTERACTION_TYPE_BREMS`, `INTERACTION_TYPE_EPAIR`, `INTERACTION_TYPE_PHOTONUCLEAR`, etc.
+
+### Utility Functions
+- `set_random_seed(seed)` — Set RNG seed for reproducibility
+- `get_proposal_version()` — Get PROPOSAL version string
+- `is_library_available()` — Check if the native library is loaded
 
 ## Configuration
 
-PROPOSAL uses JSON configuration files to define the propagation environment. Example minimal configuration:
+PROPOSAL can also use JSON configuration files. Example minimal configuration:
 
 ```json
 {
     "global": {
-        "medium": "StandardRock",
-        "cuts": {
-            "e_cut": 500,
-            "v_cut": 0.05,
-            "cont_rand": false
-        },
-        "do_interpolation": true,
-        "do_exact_time": false
+        "seed": 1234,
+        "continous_loss_output": true
     },
     "sectors": [
         {
-            "geometry": {
-                "shape": "sphere",
-                "origin": [0, 0, 0],
-                "outer_radius": 1e20,
-                "inner_radius": 0
+            "medium": "ice",
+            "geometries": [
+                {
+                    "shape": "sphere",
+                    "origin": [0, 0, 0],
+                    "outer_radius": 1e20,
+                    "inner_radius": 0
+                }
+            ],
+            "cuts": {
+                "e_cut": 500,
+                "v_cut": 0.05,
+                "cont_rand": false
+            },
+            "do_exact_time": true,
+            "scattering": {
+                "model": "highland"
             }
         }
     ]
@@ -190,36 +305,6 @@ PROPOSAL uses JSON configuration files to define the propagation environment. Ex
 ```
 
 For detailed configuration options, see the [PROPOSAL documentation](https://github.com/tudo-astroparticlephysics/PROPOSAL/blob/master/docs/config_docu.md).
-
-## Available Types and Functions
-
-### Particle Definitions
-- `MuMinusDef()`, `MuPlusDef()` - Muons
-- `EMinusDef()`, `EPlusDef()` - Electrons/Positrons
-- `TauMinusDef()`, `TauPlusDef()` - Taus
-- `GammaDef()` - Photons
-
-### Propagator Factory Functions
-- `create_propagator_muminus(config_path)`
-- `create_propagator_muplus(config_path)`
-- `create_propagator_eminus(config_path)`
-- `create_propagator_eplus(config_path)`
-- `create_propagator_tauminus(config_path)`
-- `create_propagator_tauplus(config_path)`
-- `create_propagator_gamma(config_path)`
-
-### Math Types
-- `Cartesian3D(x, y, z)` - 3D Cartesian coordinates
-- `Spherical3D(r, azimuth, zenith)` - 3D Spherical coordinates
-
-### Constants
-- `SPEED_OF_LIGHT`, `ELECTRON_MASS`, `MUON_MASS`, `TAU_MASS`, `PROTON_MASS`
-- `PARTICLE_TYPE_MUMINUS`, `PARTICLE_TYPE_MUPLUS`, `PARTICLE_TYPE_EMINUS`, etc.
-
-### Utility Functions
-- `set_random_seed(seed)` - Set RNG seed for reproducibility
-- `get_proposal_version()` - Get PROPOSAL version string
-- `is_library_available()` - Check if the native library is loaded
 
 ## Troubleshooting
 

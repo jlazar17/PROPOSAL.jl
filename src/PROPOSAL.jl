@@ -3,78 +3,21 @@ module PROPOSAL
 using CxxWrap
 using Libdl
 
-# Try to load the JLL package if available, otherwise use local development path
-const _using_jll = try
-    @eval using PROPOSAL_cxxwrap_jll
-    true
-catch
-    false
-end
-
-function get_lib_path()
-    if _using_jll
-        return PROPOSAL_cxxwrap_jll.libPROPOSAL_cxxwrap_path
-    else
-        # Development fallback - check local build
-        if Sys.isapple()
-            ext = "dylib"
-        elseif Sys.iswindows()
-            ext = "dll"
-        else
-            ext = "so"
-        end
-
-        dev_libpath = joinpath(@__DIR__, "..", "build", "lib")
-        dev_lib = joinpath(dev_libpath, "libPROPOSAL_cxxwrap.$ext")
-
-        if isfile(dev_lib)
-            return dev_lib
-        end
-
-        # Check environment variable
-        env_path = get(ENV, "PROPOSAL_JL_LIB_PATH", "")
-        if !isempty(env_path)
-            env_lib = joinpath(env_path, "libPROPOSAL_cxxwrap.$ext")
-            if isfile(env_lib)
-                return env_lib
-            end
-        end
-
-        return nothing
-    end
-end
-
-const _lib_path = get_lib_path()
-const _library_available = _lib_path !== nothing
-
-if _library_available
-    @wrapmodule(() -> _lib_path, :define_julia_module, Libdl.RTLD_LAZY | Libdl.RTLD_GLOBAL)
-
-    function __init__()
-        @initcxx
-    end
+const _libpath = if haskey(ENV, "LIBPROPOSAL_CXXWRAP_PATH")
+    ENV["LIBPROPOSAL_CXXWRAP_PATH"]
 else
-    function __init__()
-        @warn """
-        PROPOSAL wrapper library not found.
-
-        To use PROPOSAL.jl, either:
-        1. Install PROPOSAL_cxxwrap_jll (when available in registry)
-        2. Build locally: see deps/binarybuilder/README.md
-        3. Set PROPOSAL_JL_LIB_PATH environment variable
-
-        The package structure is ready but bindings are not loaded.
-        """
-    end
+    using PROPOSAL_cxxwrap_jll
+    PROPOSAL_cxxwrap_jll.libPROPOSAL_cxxwrap_path
 end
 
-# Check if library is available
-is_library_available() = _library_available
-export is_library_available
+@wrapmodule(() -> _libpath, :define_julia_module, Libdl.RTLD_LAZY | Libdl.RTLD_GLOBAL)
 
-# Exports - these will be available when the library is loaded
-if _library_available
-    # Math types
+function __init__()
+    @initcxx
+end
+
+# Exports
+# Math types
     export Vector3D, Cartesian3D, Spherical3D, UnitSphericalVector
     export get_x, get_y, get_z, set_x, set_y, set_z, magnitude, normalize, deflect
     export get_radius, get_azimuth, get_zenith, set_radius, set_azimuth, set_zenith
@@ -97,7 +40,7 @@ if _library_available
     # ParticleDef::Builder
     export ParticleDefBuilder
     export set_name, set_mass, set_low, set_lifetime, set_charge
-    export set_decay_table, set_particle_type, set_particle_def, build
+    export set_decay_table, set_particle_type, set_weak_partner, set_particle_def, build
 
     # Component
     export Component
@@ -374,12 +317,10 @@ if _library_available
     export INTERACTION_TYPE_ANNIHILATION, INTERACTION_TYPE_PHOTOPAIR
     export INTERACTION_TYPE_PHOTOPRODUCTION, INTERACTION_TYPE_PHOTOMUPAIR
     export INTERACTION_TYPE_PHOTOEFFECT
-end
 
-# High-level Julia API (available when library is loaded)
-if _library_available
+# High-level Julia API
 
-    # Cartesian3D operator overloads
+# Cartesian3D operator overloads
     Base.:+(a::Cartesian3D, b::Cartesian3D) = cartesian3d_add(a, b)
     Base.:-(a::Cartesian3D, b::Cartesian3D) = cartesian3d_subtract(a, b)
     Base.:-(a::Cartesian3D) = cartesian3d_negate(a)
@@ -538,6 +479,226 @@ if _library_available
         return [sec_calc_result_at(i) for i in 0:(n-1)]
     end
     export calculate_secondaries
+
+# ========== Submodules for Python-parity API ==========
+
+module Particle
+    import ..PROPOSAL
+    using ..PROPOSAL: ParticleDef, ParticleState, ParticleDefBuilder
+    using ..PROPOSAL: get_name, get_mass, get_lifetime, get_charge, get_particle_type
+    using ..PROPOSAL: set_name, set_mass, set_low, set_lifetime, set_charge
+    using ..PROPOSAL: set_decay_table, set_particle_type, set_weak_partner, set_particle_def, build
+    using ..PROPOSAL: MuMinusDef, MuPlusDef, EMinusDef, EPlusDef
+    using ..PROPOSAL: TauMinusDef, TauPlusDef, GammaDef
+    using ..PROPOSAL: Pi0Def, PiMinusDef, PiPlusDef, K0Def, KMinusDef, KPlusDef
+    using ..PROPOSAL: NuEDef, NuEBarDef, NuMuDef, NuMuBarDef, NuTauDef, NuTauBarDef
+    using ..PROPOSAL: StauMinusDef, StauPlusDef, MonopoleDef, SMPMinusDef, SMPPlusDef
+    using ..PROPOSAL: get_particle_def_for_type
+
+    export ParticleDef, ParticleState, ParticleDefBuilder
+    export get_name, get_mass, get_lifetime, get_charge, get_particle_type
+    export set_name, set_mass, set_low, set_lifetime, set_charge
+    export set_decay_table, set_particle_type, set_weak_partner, set_particle_def, build
+    export MuMinusDef, MuPlusDef, EMinusDef, EPlusDef
+    export TauMinusDef, TauPlusDef, GammaDef
+    export Pi0Def, PiMinusDef, PiPlusDef, K0Def, KMinusDef, KPlusDef
+    export NuEDef, NuEBarDef, NuMuDef, NuMuBarDef, NuTauDef, NuTauBarDef
+    export StauMinusDef, StauPlusDef, MonopoleDef, SMPMinusDef, SMPPlusDef
+    export get_particle_def_for_type
+end
+
+module Components
+    import ..PROPOSAL
+    using ..PROPOSAL: Component as ComponentBase
+    using ..PROPOSAL: get_nuc_charge, get_atomic_num, get_atom_in_molecule
+    using ..PROPOSAL: get_log_constant, get_b_prime, get_average_nucleon_weight, get_wood_saxon
+    using ..PROPOSAL: get_hash, get_component_for_hash
+    using ..PROPOSAL: ComponentHydrogen, ComponentCarbon, ComponentNitrogen, ComponentOxygen
+    using ..PROPOSAL: ComponentSodium, ComponentMagnesium, ComponentSulfur, ComponentChlorine
+    using ..PROPOSAL: ComponentArgon, ComponentPotassium, ComponentCalcium, ComponentIron
+    using ..PROPOSAL: ComponentCopper, ComponentLead, ComponentUranium
+    using ..PROPOSAL: ComponentStandardRock, ComponentFrejusRock
+
+    export ComponentBase
+    export get_nuc_charge, get_atomic_num, get_atom_in_molecule
+    export get_log_constant, get_b_prime, get_average_nucleon_weight, get_wood_saxon
+    export get_hash, get_component_for_hash
+    export ComponentHydrogen, ComponentCarbon, ComponentNitrogen, ComponentOxygen
+    export ComponentSodium, ComponentMagnesium, ComponentSulfur, ComponentChlorine
+    export ComponentArgon, ComponentPotassium, ComponentCalcium, ComponentIron
+    export ComponentCopper, ComponentLead, ComponentUranium
+    export ComponentStandardRock, ComponentFrejusRock
+end
+
+module Media
+    import ..PROPOSAL
+    using ..PROPOSAL: Medium as MediumBase
+    using ..PROPOSAL: get_name, get_mass_density, get_mol_density
+    using ..PROPOSAL: get_I, get_C, get_A, get_M, get_X0, get_X1, get_D0
+    using ..PROPOSAL: get_radiation_length, get_MM, get_sum_charge, get_ZA
+    using ..PROPOSAL: get_num_components, get_sum_nucleons, get_component, get_components_size, get_components
+    using ..PROPOSAL: create_medium
+    using ..PROPOSAL: create_water, create_ice, create_salt, create_calcium_carbonate
+    using ..PROPOSAL: create_standard_rock, create_frejus_rock
+    using ..PROPOSAL: create_iron_medium, create_hydrogen_medium, create_lead_medium
+    using ..PROPOSAL: create_copper_medium, create_uranium_medium
+    using ..PROPOSAL: create_paraffin, create_air, create_liquid_argon
+    using ..PROPOSAL: create_antares_water, create_cascadia_basin_water
+    using ..PROPOSAL: create_pdg2001_water, create_pdg2001_ice, create_pdg2020_water, create_pdg2020_ice
+
+    export MediumBase
+    export get_name, get_mass_density, get_mol_density
+    export get_I, get_C, get_A, get_M, get_X0, get_X1, get_D0
+    export get_radiation_length, get_MM, get_sum_charge, get_ZA
+    export get_num_components, get_sum_nucleons, get_component, get_components_size, get_components
+    export create_medium
+    export create_water, create_ice, create_salt, create_calcium_carbonate
+    export create_standard_rock, create_frejus_rock
+    export create_iron_medium, create_hydrogen_medium, create_lead_medium
+    export create_copper_medium, create_uranium_medium
+    export create_paraffin, create_air, create_liquid_argon
+    export create_antares_water, create_cascadia_basin_water
+    export create_pdg2001_water, create_pdg2001_ice, create_pdg2020_water, create_pdg2020_ice
+end
+
+module Geometries
+    import ..PROPOSAL
+    using ..PROPOSAL: Geometry as GeometryBase, Sphere, Cylinder, Box
+    using ..PROPOSAL: is_inside, is_infront, is_behind, is_entering, is_leaving
+    using ..PROPOSAL: distance_to_border_first, distance_to_border_second, distance_to_border
+    using ..PROPOSAL: distance_to_closest_approach
+    using ..PROPOSAL: get_geometry_name, get_hierarchy, set_hierarchy, get_inner_radius
+
+    export GeometryBase, Sphere, Cylinder, Box
+    export is_inside, is_infront, is_behind, is_entering, is_leaving
+    export distance_to_border_first, distance_to_border_second, distance_to_border
+    export distance_to_closest_approach
+    export get_geometry_name, get_hierarchy, set_hierarchy, get_inner_radius
+end
+
+module Density
+    import ..PROPOSAL
+    using ..PROPOSAL: Axis, CartesianAxis, RadialAxis
+    using ..PROPOSAL: DensityDistribution, DensityHomogeneous, DensityExponential
+    using ..PROPOSAL: DensityPolynomial, DensitySplines
+    using ..PROPOSAL: evaluate, integrate, calculate, correct
+
+    export Axis, CartesianAxis, RadialAxis
+    export DensityDistribution, DensityHomogeneous, DensityExponential
+    export DensityPolynomial, DensitySplines
+    export evaluate, integrate, calculate, correct
+end
+
+module Scatterings
+    import ..PROPOSAL
+    using ..PROPOSAL: ScatteringOffset, get_sx, get_sy, get_tx, get_ty
+    using ..PROPOSAL: MultipleScattering, Highland, HighlandIntegral, Moliere, MoliereInterpol
+    using ..PROPOSAL: scatter, scattering_angle, scattering_angle_2d, calculate_theta0
+    using ..PROPOSAL: create_highland_integral
+    using ..PROPOSAL: StochasticDeflection, required_random_numbers, make_stochastic_deflection
+    using ..PROPOSAL: Scattering as ScatteringBase
+    using ..PROPOSAL: scattering_multiple_scatter, scattering_stochastic_deflection
+    using ..PROPOSAL: scattering_ms_random_numbers, scattering_sd_random_numbers
+    using ..PROPOSAL: create_scattering_ms_only, create_scattering_with_sd
+    using ..PROPOSAL: create_scattering_by_types, create_scattering_multiplier
+
+    export ScatteringBase, ScatteringOffset, get_sx, get_sy, get_tx, get_ty
+    export MultipleScattering, Highland, HighlandIntegral, Moliere, MoliereInterpol
+    export scatter, scattering_angle, scattering_angle_2d, calculate_theta0
+    export create_highland_integral
+    export StochasticDeflection, required_random_numbers, make_stochastic_deflection
+    export scattering_multiple_scatter, scattering_stochastic_deflection
+    export scattering_ms_random_numbers, scattering_sd_random_numbers
+    export create_scattering_ms_only, create_scattering_with_sd
+    export create_scattering_by_types, create_scattering_multiplier
+end
+
+module Decay
+    import ..PROPOSAL
+    using ..PROPOSAL: DecayChannel, StableChannel, LeptonicDecayChannelApprox, LeptonicDecayChannel
+    using ..PROPOSAL: TwoBodyPhaseSpace
+    using ..PROPOSAL: ManyBodyPhaseSpace, create_many_body_phase_space_2, create_many_body_phase_space_3
+    using ..PROPOSAL: DecayTable, add_channel, set_stable, set_uniform_sampling, get_channel_name
+    using ..PROPOSAL: select_channel, decay_channel_decay_to_arrays
+
+    export DecayChannel, StableChannel, LeptonicDecayChannelApprox, LeptonicDecayChannel
+    export TwoBodyPhaseSpace
+    export ManyBodyPhaseSpace, create_many_body_phase_space_2, create_many_body_phase_space_3
+    export DecayTable, add_channel, set_stable, set_uniform_sampling, get_channel_name
+    export select_channel, decay_channel_decay_to_arrays
+end
+
+module InterpolationSettings
+    import ..PROPOSAL
+    using ..PROPOSAL: get_tables_path, set_tables_path
+    using ..PROPOSAL: get_upper_energy_lim, set_upper_energy_lim
+    using ..PROPOSAL: get_nodes_dedx, set_nodes_dedx, get_nodes_de2dx, set_nodes_de2dx
+    using ..PROPOSAL: get_nodes_dndx_e, set_nodes_dndx_e, get_nodes_dndx_v, set_nodes_dndx_v
+    using ..PROPOSAL: get_nodes_utility, set_nodes_utility
+    using ..PROPOSAL: get_nodes_rate_interpolant, set_nodes_rate_interpolant
+
+    """Singleton for property-style access to interpolation settings."""
+    struct Settings end
+    const settings = Settings()
+
+    function Base.getproperty(::Settings, name::Symbol)
+        name === :tables_path && return get_tables_path()
+        name === :upper_energy_lim && return get_upper_energy_lim()
+        name === :nodes_dedx && return get_nodes_dedx()
+        name === :nodes_de2dx && return get_nodes_de2dx()
+        name === :nodes_dndx_e && return get_nodes_dndx_e()
+        name === :nodes_dndx_v && return get_nodes_dndx_v()
+        name === :nodes_utility && return get_nodes_utility()
+        name === :nodes_rate_interpolant && return get_nodes_rate_interpolant()
+        error("InterpolationSettings has no property $name")
+    end
+
+    function Base.setproperty!(::Settings, name::Symbol, value)
+        name === :tables_path && return set_tables_path(value)
+        name === :upper_energy_lim && return set_upper_energy_lim(value)
+        name === :nodes_dedx && return set_nodes_dedx(value)
+        name === :nodes_de2dx && return set_nodes_de2dx(value)
+        name === :nodes_dndx_e && return set_nodes_dndx_e(value)
+        name === :nodes_dndx_v && return set_nodes_dndx_v(value)
+        name === :nodes_utility && return set_nodes_utility(value)
+        name === :nodes_rate_interpolant && return set_nodes_rate_interpolant(value)
+        error("InterpolationSettings has no property $name")
+    end
+
+    Base.propertynames(::Settings) = (:tables_path, :upper_energy_lim, :nodes_dedx,
+        :nodes_de2dx, :nodes_dndx_e, :nodes_dndx_v, :nodes_utility, :nodes_rate_interpolant)
+
+    export settings
+    export get_tables_path, set_tables_path
+    export get_upper_energy_lim, set_upper_energy_lim
+    export get_nodes_dedx, set_nodes_dedx, get_nodes_de2dx, set_nodes_de2dx
+    export get_nodes_dndx_e, set_nodes_dndx_e, get_nodes_dndx_v, set_nodes_dndx_v
+    export get_nodes_utility, set_nodes_utility
+    export get_nodes_rate_interpolant, set_nodes_rate_interpolant
+end
+
+module PropagationSettings
+    import ..PROPOSAL
+    using ..PROPOSAL: get_max_steps, set_max_steps
+
+    """Singleton for property-style access to propagation settings."""
+    struct Settings end
+    const settings = Settings()
+
+    function Base.getproperty(::Settings, name::Symbol)
+        name === :max_steps && return get_max_steps()
+        error("PropagationSettings has no property $name")
+    end
+
+    function Base.setproperty!(::Settings, name::Symbol, value)
+        name === :max_steps && return set_max_steps(value)
+        error("PropagationSettings has no property $name")
+    end
+
+    Base.propertynames(::Settings) = (:max_steps,)
+
+    export settings
+    export get_max_steps, set_max_steps
 end
 
 end # module

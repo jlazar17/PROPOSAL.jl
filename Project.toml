@@ -6,12 +6,12 @@ version = "0.1.0"
 [deps]
 CxxWrap = "1f15a43c-97ca-5a2a-ae31-89f07a497df4"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-# PROPOSAL_cxxwrap_jll = "<uuid>"  # Uncomment after JLL is registered
+PROPOSAL_cxxwrap_jll = "39234983-ca09-5ebd-80f9-0678ebb0ef7b"
 
 [compat]
-CxxWrap = "0.14, 0.15"
-# PROPOSAL_cxxwrap_jll = "0.1"  # Uncomment after JLL is registered
-julia = "1.6, 1.7, 1.8, 1.9, 1.10, 1.11"
+CxxWrap = "0.17"
+PROPOSAL_cxxwrap_jll = "0.1"
+julia = "1.10, 1.11"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

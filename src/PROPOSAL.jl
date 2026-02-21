@@ -16,6 +16,14 @@ function __init__()
     @initcxx
 end
 
+"""
+    is_library_available() -> Bool
+
+Returns `true` if the PROPOSAL native library was loaded successfully.
+"""
+is_library_available() = true
+export is_library_available
+
 # Exports
 # Math types
     export Vector3D, Cartesian3D, Spherical3D, UnitSphericalVector
